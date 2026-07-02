@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS 與 OpenStreetMap 整合</title>
+    
+    <!-- 引入 Tailwind CSS 進行快速且現代化的樣式設計 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 Leaflet 的 CSS (用於地圖樣式) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <!-- 引入 Leaflet 的 JS (用於地圖功能) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <style>
+        /* 確保地圖容器有明確的高度 */
+        #map {
+            height: 100%;
+            width: 100%;
+            z-index: 1; /* 確保地圖層級正確 */
+        }
+        
+        /* 隱藏捲軸，保持畫面整潔 */
+        body {
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 h-screen flex flex-col font-sans">
+
+    <!-- 標題列 -->
+    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center z-10">
+        <h1 class="text-xl font-bold flex items-center gap-2">
+            <!-- 簡單的圖示 -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            目前位置地圖
+        </h1>
+        <button id="locate-btn" class="bg-white text-blue-600 hover:bg-blue-50 font-semibold py-2 px-4 rounded shadow transition-colors duration-200 flex items-center gap-2 text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            重新定位
+        </button>
+    </header>
+
+    <!-- 狀態提示區塊 -->
+    <div id="status-bar" class="bg-yellow-100 border-b border-yellow-200 text-yellow-800 px-4 py-2 text-sm text-center hidden">
+        正在取得您的位置資訊...
+    </div>
+
+    <!-- 地圖容器 -->
+    <main class="flex-grow relative">
+        <div id="map"></div>
+    </main>
+
+    <!-- 底部資訊列 -->
+    <footer class="bg-white p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] text-xs text-gray-500 flex justify-between z-10">
+        <span id="coords-info">緯度: - / 經度: -</span>
+        <span id="accuracy-info">精確度: -</span>
+    </footer>
+
+    <script>
+        // 修正 Leaflet 預設圖標在 CDN 環境下可能遺失路徑的問題
+        delete L.Icon.Default.prototype._getIconUrl;
+        L.Icon.Default.mergeOptions({
+            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        });
+
+        // 1. 初始化地圖
+        // 設定初始中心點 (台灣) 與縮放級別
+        const map = L.map('map').setView([23.5, 121], 7);
+
+        // 2. 加入 OpenStreetMap 圖層
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 貢獻者'
+        }).addTo(map);
+
+        // 宣告標記與圓圈變數
+        let marker, accuracyCircle;
+
+        // UI 元素
+        const locateBtn = document.getElementById('locate-btn');
+        const statusBar = document.getElementById('status-bar');
+        const coordsInfo = document.getElementById('coords-info');
+        const accuracyInfo = document.getElementById('accuracy-info');
+
+        // 3. 定位功能實作
+        function locateUser() {
+            if (!navigator.geolocation) {
+                showStatus('您的瀏覽器不支援地理位置定位 (Geolocation)。', 'error');
+                return;
+            }
+
+            showStatus('正在取得您的位置資訊...', 'loading');
+            
+            // 停用按鈕避免重複點擊
+            locateBtn.disabled = true;
+            locateBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            // 請求目前位置
+            navigator.geolocation.getCurrentPosition(
+                onLocationSuccess,
+                onLocationError,
+                {
+                    enableHighAccuracy: true, // 要求高精確度 (GPS)
+                    timeout: 10000,           // 逾時時間 10 秒
+                    maximumAge: 0             // 不使用快取位置
+                }
+            );
+        }
+
+        // 定位成功時的回呼函式
+        function onLocationSuccess(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = position.coords.accuracy; // 單位為公尺
+
+            // 更新地圖視角並放大
+            map.flyTo([lat, lng], 16, {
+                animate: true,
+                duration: 1.5
+            });
+
+            // 如果已經有標記，則移除舊的
+            if (marker) {
+                map.removeLayer(marker);
+                map.removeLayer(accuracyCircle);
+            }
+
+            // 建立精確度範圍圓圈
+            accuracyCircle = L.circle([lat, lng], {
+                radius: accuracy,
+                color: '#3b82f6', // Tailwind blue-500
+                fillColor: '#93c5fd', // Tailwind blue-300
+                fillOpacity: 0.3,
+                weight: 1
+            }).addTo(map);
+
+            // 建立位置標記
+            marker = L.marker([lat, lng])
+                .addTo(map)
+                .bindPopup("<b>您在這裡！</b><br>這大約是您目前的位置。")
+                .openPopup();
+
+            // 更新 UI 資訊
+            coordsInfo.textContent = `緯度: ${lat.toFixed(5)} / 經度: ${lng.toFixed(5)}`;
+            accuracyInfo.textContent = `精確度: 約 ${Math.round(accuracy)} 公尺`;
+            
+            hideStatus();
+            resetButton();
+        }
+
+        // 定位失敗時的回呼函式
+        function onLocationError(error) {
+            let message = '取得位置失敗。';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message = "使用者拒絕提供位置資訊，請檢查瀏覽器權限設定。";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = "無法取得位置資訊 (GPS 訊號弱或無網路)。";
+                    break;
+                case error.TIMEOUT:
+                    message = "取得位置資訊逾時，請稍後再試。";
+                    break;
+            }
+            showStatus(message, 'error');
+            resetButton();
+        }
+
+        // 輔助函式：顯示狀態訊息
+        function showStatus(message, type) {
+            statusBar.textContent = message;
+            statusBar.classList.remove('hidden', 'bg-yellow-100', 'text-yellow-800', 'bg-red-100', 'text-red-800');
+            
+            if (type === 'error') {
+                statusBar.classList.add('bg-red-100', 'text-red-800');
+                // 錯誤訊息3秒後自動隱藏
+                setTimeout(hideStatus, 4000);
+            } else {
+                statusBar.classList.add('bg-yellow-100', 'text-yellow-800');
+            }
+        }
+
+        // 輔助函式：隱藏狀態訊息
+        function hideStatus() {
+            statusBar.classList.add('hidden');
+        }
+
+        // 輔助函式：重設按鈕狀態
+        function resetButton() {
+            locateBtn.disabled = false;
+            locateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+        // 綁定按鈕點擊事件
+        locateBtn.addEventListener('click', locateUser);
+
+        // 網頁載入完成後，自動嘗試取得一次位置
+        window.onload = () => {
+            // 可以根據需求決定是否一載入就要求授權
+            // setTimeout(locateUser, 500); 
+        };
+    </script>
+</body>
+</html>
