@@ -38,13 +38,14 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            目前位置地圖
+            目前位置與軌跡追蹤
         </h1>
-        <button id="locate-btn" class="bg-white text-blue-600 hover:bg-blue-50 font-semibold py-2 px-4 rounded shadow transition-colors duration-200 flex items-center gap-2 text-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        <button id="track-btn" class="bg-white text-blue-600 hover:bg-blue-50 font-semibold py-2 px-4 rounded shadow transition-colors duration-200 flex items-center gap-2 text-sm">
+            <svg id="track-icon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            重新定位
+            <span id="track-text">開始追蹤</span>
         </button>
     </header>
 
@@ -85,34 +86,58 @@
 
         // 宣告標記與圓圈變數
         let marker, accuracyCircle;
+        let watchId = null; // 用於儲存追蹤 ID
+        let pathCoordinates = []; // 儲存移動軌跡座標
+        let pathLine; // 軌跡線條圖層
+        let isFirstLocation = true; // 判斷是否為第一次定位
 
         // UI 元素
-        const locateBtn = document.getElementById('locate-btn');
+        const trackBtn = document.getElementById('track-btn');
+        const trackText = document.getElementById('track-text');
+        const trackIcon = document.getElementById('track-icon');
         const statusBar = document.getElementById('status-bar');
         const coordsInfo = document.getElementById('coords-info');
         const accuracyInfo = document.getElementById('accuracy-info');
 
-        // 3. 定位功能實作
-        function locateUser() {
+        // 3. 追蹤功能實作
+        function toggleTracking() {
             if (!navigator.geolocation) {
                 showStatus('您的瀏覽器不支援地理位置定位 (Geolocation)。', 'error');
                 return;
             }
 
-            showStatus('正在取得您的位置資訊...', 'loading');
-            
-            // 停用按鈕避免重複點擊
-            locateBtn.disabled = true;
-            locateBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            if (watchId !== null) {
+                // 停止追蹤
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+                showStatus('已停止追蹤。', 'info');
+                
+                // 恢復按鈕樣式
+                trackBtn.classList.replace('text-red-600', 'text-blue-600');
+                trackBtn.classList.replace('hover:bg-red-50', 'hover:bg-blue-50');
+                trackText.textContent = '開始追蹤';
+                trackIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />`;
+                return;
+            }
 
-            // 請求目前位置
-            navigator.geolocation.getCurrentPosition(
+            // 開始追蹤
+            showStatus('正在取得位置並開啟追蹤...', 'loading');
+            isFirstLocation = true;
+            
+            // 變更按鈕為停止追蹤樣式
+            trackBtn.classList.replace('text-blue-600', 'text-red-600');
+            trackBtn.classList.replace('hover:bg-blue-50', 'hover:bg-red-50');
+            trackText.textContent = '停止追蹤';
+            trackIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />`;
+
+            // 使用 watchPosition 持續追蹤
+            watchId = navigator.geolocation.watchPosition(
                 onLocationSuccess,
                 onLocationError,
                 {
-                    enableHighAccuracy: true, // 要求高精確度 (GPS)
-                    timeout: 10000,           // 逾時時間 10 秒
-                    maximumAge: 0             // 不使用快取位置
+                    enableHighAccuracy: true, // 盡量使用 GPS
+                    timeout: 10000,
+                    maximumAge: 0
                 }
             );
         }
@@ -121,41 +146,59 @@
         function onLocationSuccess(position) {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
-            const accuracy = position.coords.accuracy; // 單位為公尺
+            const accuracy = position.coords.accuracy;
 
-            // 更新地圖視角並放大
-            map.flyTo([lat, lng], 16, {
-                animate: true,
-                duration: 1.5
-            });
-
-            // 如果已經有標記，則移除舊的
-            if (marker) {
-                map.removeLayer(marker);
-                map.removeLayer(accuracyCircle);
+            // 更新地圖視角
+            if (isFirstLocation) {
+                map.flyTo([lat, lng], 17, { animate: true, duration: 1.5 });
+                isFirstLocation = false;
+                hideStatus();
+            } else {
+                // 後續移動平滑移動中心點
+                map.panTo([lat, lng]);
             }
 
-            // 建立精確度範圍圓圈
-            accuracyCircle = L.circle([lat, lng], {
-                radius: accuracy,
-                color: '#3b82f6', // Tailwind blue-500
-                fillColor: '#93c5fd', // Tailwind blue-300
-                fillOpacity: 0.3,
-                weight: 1
-            }).addTo(map);
+            // 處理軌跡線
+            pathCoordinates.push([lat, lng]);
+            if (!pathLine) {
+                pathLine = L.polyline(pathCoordinates, {
+                    color: '#ef4444', // Tailwind 的 red-500
+                    weight: 4,
+                    opacity: 0.8,
+                    dashArray: '5, 10', // 繪製虛線
+                    lineJoin: 'round'
+                }).addTo(map);
+            } else {
+                pathLine.setLatLngs(pathCoordinates);
+            }
 
-            // 建立位置標記
-            marker = L.marker([lat, lng])
-                .addTo(map)
-                .bindPopup("<b>您在這裡！</b><br>這大約是您目前的位置。")
-                .openPopup();
+            // 更新或建立精確度範圍圓圈
+            if (accuracyCircle) {
+                accuracyCircle.setLatLng([lat, lng]);
+                accuracyCircle.setRadius(accuracy);
+            } else {
+                accuracyCircle = L.circle([lat, lng], {
+                    radius: accuracy,
+                    color: '#3b82f6',
+                    fillColor: '#93c5fd',
+                    fillOpacity: 0.3,
+                    weight: 1
+                }).addTo(map);
+            }
+
+            // 更新或建立位置標記
+            if (marker) {
+                marker.setLatLng([lat, lng]);
+            } else {
+                marker = L.marker([lat, lng])
+                    .addTo(map)
+                    .bindPopup("<b>您目前的位置</b>")
+                    .openPopup();
+            }
 
             // 更新 UI 資訊
             coordsInfo.textContent = `緯度: ${lat.toFixed(5)} / 經度: ${lng.toFixed(5)}`;
             accuracyInfo.textContent = `精確度: 約 ${Math.round(accuracy)} 公尺`;
-            
-            hideStatus();
-            resetButton();
         }
 
         // 定位失敗時的回呼函式
@@ -164,6 +207,8 @@
             switch(error.code) {
                 case error.PERMISSION_DENIED:
                     message = "使用者拒絕提供位置資訊，請檢查瀏覽器權限設定。";
+                    // 如果被拒絕，自動關閉按鈕的追蹤狀態
+                    if (watchId !== null) toggleTracking();
                     break;
                 case error.POSITION_UNAVAILABLE:
                     message = "無法取得位置資訊 (GPS 訊號弱或無網路)。";
@@ -173,18 +218,19 @@
                     break;
             }
             showStatus(message, 'error');
-            resetButton();
         }
 
         // 輔助函式：顯示狀態訊息
         function showStatus(message, type) {
             statusBar.textContent = message;
-            statusBar.classList.remove('hidden', 'bg-yellow-100', 'text-yellow-800', 'bg-red-100', 'text-red-800');
+            statusBar.classList.remove('hidden', 'bg-yellow-100', 'text-yellow-800', 'bg-red-100', 'text-red-800', 'bg-blue-100', 'text-blue-800');
             
             if (type === 'error') {
                 statusBar.classList.add('bg-red-100', 'text-red-800');
-                // 錯誤訊息3秒後自動隱藏
                 setTimeout(hideStatus, 4000);
+            } else if (type === 'info') {
+                statusBar.classList.add('bg-blue-100', 'text-blue-800');
+                setTimeout(hideStatus, 3000);
             } else {
                 statusBar.classList.add('bg-yellow-100', 'text-yellow-800');
             }
@@ -195,19 +241,11 @@
             statusBar.classList.add('hidden');
         }
 
-        // 輔助函式：重設按鈕狀態
-        function resetButton() {
-            locateBtn.disabled = false;
-            locateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-        }
-
         // 綁定按鈕點擊事件
-        locateBtn.addEventListener('click', locateUser);
+        trackBtn.addEventListener('click', toggleTracking);
 
-        // 網頁載入完成後，自動嘗試取得一次位置
+        // 網頁載入完成後
         window.onload = () => {
-            // 可以根據需求決定是否一載入就要求授權
-            // setTimeout(locateUser, 500); 
         };
     </script>
 </body>
