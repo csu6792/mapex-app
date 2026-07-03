@@ -2,54 +2,37 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GPS 與 OpenStreetMap 整合</title>
-    
-    <!-- 引入 Tailwind CSS 進行快速且現代化的樣式設計 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GPS 即時追蹤與導航地圖</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- 引入 Leaflet 的 CSS (用於地圖樣式) -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    
-    <!-- 引入 Leaflet 的 JS (用於地圖功能) -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        /* 確保地圖容器有明確的高度 */
+        /* 確保地圖容器填滿剩餘空間 */
         #map {
             height: 100%;
             width: 100%;
-            z-index: 1; /* 確保地圖層級正確 */
-        }
-        
-        /* 隱藏捲軸，保持畫面整潔 */
-        body {
-            overflow: hidden;
+            z-index: 1; /* 避免蓋住 Tailwind 的 z-10 元素 */
         }
     </style>
 </head>
-<body class="bg-slate-100 h-screen flex flex-col font-sans">
+<body class="h-screen flex flex-col bg-gray-50">
 
-    <!-- 標題列 -->
-    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center z-10">
+    <header class="bg-blue-600 text-white p-4 shadow-md z-10 relative">
         <h1 class="text-xl font-bold flex items-center gap-2">
-            <!-- 簡單的圖示 -->
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            目前位置與軌跡追蹤
+            即時追蹤與導航地圖
         </h1>
     </header>
 
-    <!-- 狀態提示區塊 -->
-    <div id="status-bar" class="bg-yellow-100 border-b border-yellow-200 text-yellow-800 px-4 py-2 text-sm text-center hidden">
+    <div id="status-bar" class="bg-yellow-100 border-b border-yellow-200 text-yellow-800 px-4 py-2 text-sm text-center hidden z-10 relative">
         正在取得您的位置資訊...
     </div>
 
-    <!-- 新增：搜尋列區塊 -->
     <div class="bg-white p-2 shadow-sm border-b flex gap-2 z-10 relative">
-        <input type="text" id="search-input" placeholder="搜尋地點 (例如: 台北車站)" class="flex-grow border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+        <input type="text" id="search-input" placeholder="搜尋地點 (例如: 高雄火車站)" class="flex-grow border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
         <button id="search-btn" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-sm">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -58,10 +41,8 @@
         </button>
     </div>
 
-    <!-- 地圖容器 -->
     <main class="flex-grow relative">
         <div id="map"></div>
-        <!-- 新增：浮動的「回到目前位置 / 自動對焦」按鈕 -->
         <button id="focus-btn" class="hidden absolute bottom-6 right-4 z-[1000] bg-white p-3 rounded-full shadow-lg border border-gray-200 text-blue-600 hover:bg-blue-100 transition-colors" title="回到目前位置並放大">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -69,8 +50,7 @@
         </button>
     </main>
 
-    <!-- 底部資訊列 -->
-    <footer class="bg-white p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] text-xs text-gray-500 flex items-center justify-between z-10">
+    <footer class="bg-white p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] text-xs text-gray-500 flex items-center justify-between z-10 relative">
         <div class="flex flex-col gap-1">
             <span id="coords-info">緯度: - / 經度: -</span>
             <span id="accuracy-info">精確度: -</span>
@@ -80,45 +60,46 @@
         </div>
     </footer>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         // 修正 Leaflet 預設圖標在 CDN 環境下可能遺失路徑的問題
         delete L.Icon.Default.prototype._getIconUrl;
         L.Icon.Default.mergeOptions({
-            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+            iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
         });
 
-        // 1. 初始化地圖
-        // 設定初始中心點 (台灣) 與縮放級別
+        // 1. 初始化地圖 (預設中心點設為台灣中心，縮放層級較小)
         const map = L.map('map').setView([23.5, 121], 7);
 
         // 2. 加入 OpenStreetMap 圖層
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
             maxZoom: 19,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 貢獻者'
         }).addTo(map);
 
-        // 宣告標記與圓圈變數
+        // 宣告全域變數
         let marker, accuracyCircle;
-        let watchId = null; // 用於儲存追蹤 ID
-        let pathCoordinates = []; // 儲存移動軌跡座標
-        let pathLine; // 軌跡線條圖層
-        let isFirstLocation = true; // 判斷是否為第一次定位
-        let currentLat = null; // 儲存最新緯度
-        let currentLng = null; // 儲存最新經度
-        let searchMarker = null; // 新增：儲存搜尋結果的標記
+        let watchId = null; 
+        let pathCoordinates = []; 
+        let pathLine; 
+        let isFirstLocation = true; 
+        let currentLat = null; 
+        let currentLng = null; 
+        let searchMarker = null; 
+        let routingLayer = null; 
 
         // UI 元素
         const statusBar = document.getElementById('status-bar');
         const coordsInfo = document.getElementById('coords-info');
         const accuracyInfo = document.getElementById('accuracy-info');
-        const speedInfo = document.getElementById('speed-info'); // 新增：速度資訊元素
-        const focusBtn = document.getElementById('focus-btn'); // 新增：對焦按鈕
-        const searchInput = document.getElementById('search-input'); // 新增：搜尋輸入框
-        const searchBtn = document.getElementById('search-btn'); // 新增：搜尋按鈕
+        const speedInfo = document.getElementById('speed-info');
+        const focusBtn = document.getElementById('focus-btn');
+        const searchInput = document.getElementById('search-input');
+        const searchBtn = document.getElementById('search-btn');
 
-        // 3. 自動追蹤功能實作
+        // 自動追蹤功能實作
         function startAutoTracking() {
             if (!navigator.geolocation) {
                 showStatus('您的瀏覽器不支援地理位置定位 (Geolocation)。', 'error');
@@ -128,15 +109,10 @@
             showStatus('正在自動定位並開啟追蹤...', 'loading');
             isFirstLocation = true;
 
-            // 使用 watchPosition 持續追蹤
             watchId = navigator.geolocation.watchPosition(
                 onLocationSuccess,
                 onLocationError,
-                {
-                    enableHighAccuracy: true, // 盡量使用 GPS
-                    timeout: 10000,
-                    maximumAge: 0
-                }
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
         }
 
@@ -146,71 +122,51 @@
             const lng = position.coords.longitude;
             const accuracy = position.coords.accuracy;
 
-            // 儲存最新座標，提供給對焦按鈕使用
             currentLat = lat;
             currentLng = lng;
-
-            // 顯示對焦按鈕
             focusBtn.classList.remove('hidden');
 
-            // 更新地圖視角
+            // 第一次定位時自動飛越對焦
             if (isFirstLocation) {
                 map.flyTo([lat, lng], 17, { animate: true, duration: 1.5 });
                 isFirstLocation = false;
                 hideStatus();
             }
-            // 已經移除此處的 map.panTo()
-            // 這樣不僅解決了動畫被打斷的問題，也能讓您在追蹤期間自由拖曳地圖或搜尋其他地點！
 
-            // 處理軌跡線
+            // 處理軌跡線 (紅色實線)
             pathCoordinates.push([lat, lng]);
-            if (!pathLine) {
-                pathLine = L.polyline(pathCoordinates, {
-                    color: '#ef4444', // Tailwind 的 red-500
-                    weight: 4,
-                    opacity: 0.8,
-                    dashArray: '5, 10', // 繪製虛線
-                    lineJoin: 'round'
-                }).addTo(map);
-            } else {
+            if (pathLine) {
                 pathLine.setLatLngs(pathCoordinates);
+            } else {
+                pathLine = L.polyline(pathCoordinates, { color: '#ef4444', weight: 4, opacity: 0.8 }).addTo(map);
             }
 
-            // 更新或建立精確度範圍圓圈
+            // 更新目前位置標記與誤差範圍圓圈
             if (accuracyCircle) {
                 accuracyCircle.setLatLng([lat, lng]);
                 accuracyCircle.setRadius(accuracy);
             } else {
                 accuracyCircle = L.circle([lat, lng], {
-                    radius: accuracy,
-                    color: '#3b82f6',
-                    fillColor: '#93c5fd',
-                    fillOpacity: 0.3,
-                    weight: 1
+                    radius: accuracy, color: '#3b82f6', fillColor: '#93c5fd', fillOpacity: 0.3, weight: 1
                 }).addTo(map);
             }
 
-            // 更新或建立位置標記
             if (marker) {
                 marker.setLatLng([lat, lng]);
             } else {
-                marker = L.marker([lat, lng])
-                    .addTo(map)
-                    .bindPopup("<b>您目前的位置</b>")
-                    .openPopup();
+                marker = L.marker([lat, lng]).addTo(map).bindPopup("<b>您目前的位置</b>");
             }
 
-            // 更新 UI 資訊
+            // 更新底部文字資訊
             coordsInfo.textContent = `緯度: ${lat.toFixed(5)} / 經度: ${lng.toFixed(5)}`;
             accuracyInfo.textContent = `精確度: 約 ${Math.round(accuracy)} 公尺`;
 
-            // 處理速度 (API 回傳單位為 m/s，需乘以 3.6 轉換為 km/h)
+            // 計算車速
             const speed = position.coords.speed;
             if (speed !== null && !isNaN(speed)) {
                 const speedKmh = (speed * 3.6).toFixed(1);
                 speedInfo.textContent = `${speedKmh} km/h`;
             } else {
-                // 如果裝置不支援或處於靜止狀態無法計算速度時
                 speedInfo.textContent = `0.0 km/h`;
             }
         }
@@ -220,7 +176,7 @@
             let message = '取得位置失敗。';
             switch(error.code) {
                 case error.PERMISSION_DENIED:
-                    message = "使用者拒絕提供位置資訊，請檢查瀏覽器權限設定。";
+                    message = "使用者拒絕提供位置資訊，請允許權限後重整網頁。";
                     break;
                 case error.POSITION_UNAVAILABLE:
                     message = "無法取得位置資訊 (GPS 訊號弱或無網路)。";
@@ -232,36 +188,7 @@
             showStatus(message, 'error');
         }
 
-        // 輔助函式：顯示狀態訊息
-        function showStatus(message, type) {
-            statusBar.textContent = message;
-            statusBar.classList.remove('hidden', 'bg-yellow-100', 'text-yellow-800', 'bg-red-100', 'text-red-800', 'bg-blue-100', 'text-blue-800');
-            
-            if (type === 'error') {
-                statusBar.classList.add('bg-red-100', 'text-red-800');
-                setTimeout(hideStatus, 4000);
-            } else if (type === 'info') {
-                statusBar.classList.add('bg-blue-100', 'text-blue-800');
-                setTimeout(hideStatus, 3000);
-            } else {
-                statusBar.classList.add('bg-yellow-100', 'text-yellow-800');
-            }
-        }
-
-        // 輔助函式：隱藏狀態訊息
-        function hideStatus() {
-            statusBar.classList.add('hidden');
-        }
-
-        // 新增：綁定自動對焦按鈕事件
-        focusBtn.addEventListener('click', () => {
-            if (currentLat !== null && currentLng !== null) {
-                // 重新飛越並放大到比例尺 17
-                map.flyTo([currentLat, currentLng], 17, { animate: true, duration: 1.5 });
-            }
-        });
-
-        // 新增：搜尋地點功能 (使用 OpenStreetMap Nominatim API)
+        // 搜尋地點功能 (Nominatim API)
         async function searchLocation() {
             const query = searchInput.value.trim();
             if (!query) {
@@ -274,28 +201,29 @@
             searchBtn.classList.add('opacity-50', 'cursor-not-allowed');
 
             try {
-                // 呼叫 Nominatim API
                 const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
                 const data = await response.json();
 
                 if (data && data.length > 0) {
                     const result = data[0];
-                    const lat = parseFloat(result.lat);
-                    const lon = parseFloat(result.lon);
+                    const destLat = parseFloat(result.lat);
+                    const destLon = parseFloat(result.lon);
 
-                    // 飛越到搜尋結果的位置
-                    map.flyTo([lat, lon], 16, { animate: true, duration: 1.5 });
-
-                    // 處理搜尋標記 (如果已經有舊的搜尋標記，就更新位置；否則新增一個)
                     if (searchMarker) {
-                        searchMarker.setLatLng([lat, lon]);
+                        searchMarker.setLatLng([destLat, destLon]);
                     } else {
-                        searchMarker = L.marker([lat, lon]).addTo(map);
+                        searchMarker = L.marker([destLat, destLon]).addTo(map);
                     }
                     
-                    // 顯示該地點的詳細名稱
                     searchMarker.bindPopup(`<b>搜尋結果：</b><br>${result.display_name}`).openPopup();
-                    hideStatus();
+
+                    // 若已有目前位置，進行路線規劃；否則直接飛過去
+                    if (currentLat !== null && currentLng !== null) {
+                        getRoute(currentLat, currentLng, destLat, destLon, result.display_name);
+                    } else {
+                        map.flyTo([destLat, destLon], 16, { animate: true, duration: 1.5 });
+                        hideStatus();
+                    }
                 } else {
                     showStatus('找不到該地點，請嘗試更換關鍵字。', 'error');
                 }
@@ -308,19 +236,84 @@
             }
         }
 
-        // 新增：綁定搜尋按鈕點擊事件
-        searchBtn.addEventListener('click', searchLocation);
+        // 呼叫 OSRM API 取得導航路線
+        async function getRoute(startLat, startLng, endLat, endLng, destinationName) {
+            showStatus('正在規劃導航路線...', 'loading');
+            try {
+                const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`;
+                const response = await fetch(url);
+                const data = await response.json();
 
-        // 新增：綁定輸入框的 Enter 鍵事件，讓使用者按 Enter 就能搜尋
-        searchInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                searchLocation();
+                if (data.code === 'Ok' && data.routes.length > 0) {
+                    const route = data.routes[0];
+                    const coordinates = route.geometry.coordinates;
+                    const latLngs = coordinates.map(coord => [coord[1], coord[0]]);
+
+                    if (routingLayer) map.removeLayer(routingLayer);
+
+                    // 繪製紫色虛線路徑
+                    routingLayer = L.polyline(latLngs, {
+                        color: '#8b5cf6', weight: 6, opacity: 0.7, dashArray: '10, 10'
+                    }).addTo(map);
+
+                    // 自動縮放讓起終點都進入畫面
+                    map.fitBounds(routingLayer.getBounds(), { padding: [50, 50] });
+
+                    const distanceKm = (route.distance / 1000).toFixed(1);
+                    const durationMin = Math.round(route.duration / 60);
+
+                    searchMarker.bindPopup(`
+                        <b>📍 目的地</b><br>
+                        ${destinationName}<br>
+                        <hr style="margin:5px 0;">
+                        🚗 距離: <b>${distanceKm} 公里</b><br>
+                        ⏱️ 開車約: <b>${durationMin} 分鐘</b>
+                    `).openPopup();
+
+                    hideStatus();
+                } else {
+                    showStatus('無法規劃這兩個地點之間的路線。', 'error');
+                }
+            } catch (error) {
+                console.error("路線規劃錯誤:", error);
+                showStatus('路線規劃發生錯誤，請稍後再試。', 'error');
+            }
+        }
+
+        // 輔助函式：顯示狀態訊息
+        function showStatus(text, type = 'info') {
+            statusBar.textContent = text;
+            statusBar.className = 'px-4 py-2 text-sm text-center z-10 relative ';
+            if (type === 'error') {
+                statusBar.classList.add('bg-red-100', 'border-b', 'border-red-200', 'text-red-800');
+            } else if (type === 'loading') {
+                statusBar.classList.add('bg-yellow-100', 'border-b', 'border-yellow-200', 'text-yellow-800');
+            } else {
+                statusBar.classList.add('bg-blue-100', 'border-b', 'border-blue-200', 'text-blue-800');
+            }
+            statusBar.classList.remove('hidden');
+        }
+
+        function hideStatus() {
+            statusBar.classList.add('hidden');
+        }
+
+        // 綁定事件
+        focusBtn.addEventListener('click', () => {
+            if (currentLat !== null && currentLng !== null) {
+                map.flyTo([currentLat, currentLng], 17, { animate: true, duration: 1.5 });
             }
         });
+        
+        searchBtn.addEventListener('click', searchLocation);
+        
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchLocation();
+        });
 
-        // 網頁載入完成後自動執行
+        // 網頁載入完成後直接啟動追蹤
         window.onload = () => {
-            startAutoTracking(); 
+            startAutoTracking();
         };
     </script>
 </body>
