@@ -40,13 +40,6 @@
             </svg>
             目前位置與軌跡追蹤
         </h1>
-        <button id="track-btn" class="bg-white text-blue-600 hover:bg-blue-50 font-semibold py-2 px-4 rounded shadow transition-colors duration-200 flex items-center gap-2 text-sm">
-            <svg id="track-icon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span id="track-text">開始追蹤</span>
-        </button>
     </header>
 
     <!-- 狀態提示區塊 -->
@@ -112,9 +105,6 @@
         let searchMarker = null; // 新增：儲存搜尋結果的標記
 
         // UI 元素
-        const trackBtn = document.getElementById('track-btn');
-        const trackText = document.getElementById('track-text');
-        const trackIcon = document.getElementById('track-icon');
         const statusBar = document.getElementById('status-bar');
         const coordsInfo = document.getElementById('coords-info');
         const accuracyInfo = document.getElementById('accuracy-info');
@@ -122,36 +112,15 @@
         const searchInput = document.getElementById('search-input'); // 新增：搜尋輸入框
         const searchBtn = document.getElementById('search-btn'); // 新增：搜尋按鈕
 
-        // 3. 追蹤功能實作
-        function toggleTracking() {
+        // 3. 自動追蹤功能實作
+        function startAutoTracking() {
             if (!navigator.geolocation) {
                 showStatus('您的瀏覽器不支援地理位置定位 (Geolocation)。', 'error');
                 return;
             }
 
-            if (watchId !== null) {
-                // 停止追蹤
-                navigator.geolocation.clearWatch(watchId);
-                watchId = null;
-                showStatus('已停止追蹤。', 'info');
-                
-                // 恢復按鈕樣式
-                trackBtn.classList.replace('text-red-600', 'text-blue-600');
-                trackBtn.classList.replace('hover:bg-red-50', 'hover:bg-blue-50');
-                trackText.textContent = '開始追蹤';
-                trackIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />`;
-                return;
-            }
-
-            // 開始追蹤
-            showStatus('正在取得位置並開啟追蹤...', 'loading');
+            showStatus('正在自動定位並開啟追蹤...', 'loading');
             isFirstLocation = true;
-            
-            // 變更按鈕為停止追蹤樣式
-            trackBtn.classList.replace('text-blue-600', 'text-red-600');
-            trackBtn.classList.replace('hover:bg-blue-50', 'hover:bg-red-50');
-            trackText.textContent = '停止追蹤';
-            trackIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />`;
 
             // 使用 watchPosition 持續追蹤
             watchId = navigator.geolocation.watchPosition(
@@ -237,8 +206,6 @@
             switch(error.code) {
                 case error.PERMISSION_DENIED:
                     message = "使用者拒絕提供位置資訊，請檢查瀏覽器權限設定。";
-                    // 如果被拒絕，自動關閉按鈕的追蹤狀態
-                    if (watchId !== null) toggleTracking();
                     break;
                 case error.POSITION_UNAVAILABLE:
                     message = "無法取得位置資訊 (GPS 訊號弱或無網路)。";
@@ -270,9 +237,6 @@
         function hideStatus() {
             statusBar.classList.add('hidden');
         }
-
-        // 綁定按鈕點擊事件
-        trackBtn.addEventListener('click', toggleTracking);
 
         // 新增：綁定自動對焦按鈕事件
         focusBtn.addEventListener('click', () => {
@@ -339,53 +303,9 @@
             }
         });
 
-        // 新增：取得初始位置並自動對焦的函式
-        function getInitialLocation() {
-            if (!navigator.geolocation) return;
-            
-            showStatus('正在為您自動定位...', 'loading');
-            
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
-                    const accuracy = position.coords.accuracy;
-
-                    // 記錄座標以供對焦按鈕使用
-                    currentLat = lat;
-                    currentLng = lng;
-                    focusBtn.classList.remove('hidden');
-
-                    // 初始自動飛越並對焦
-                    map.flyTo([lat, lng], 17, { animate: true, duration: 1.5 });
-
-                    // 建立初始圓圈與標記
-                    if (!accuracyCircle) {
-                        accuracyCircle = L.circle([lat, lng], {
-                            radius: accuracy, color: '#3b82f6', fillColor: '#93c5fd', fillOpacity: 0.3, weight: 1
-                        }).addTo(map);
-                    }
-                    if (!marker) {
-                        marker = L.marker([lat, lng]).addTo(map).bindPopup("<b>您目前的位置</b>").openPopup();
-                    }
-
-                    // 更新底部座標資訊
-                    coordsInfo.textContent = `緯度: ${lat.toFixed(5)} / 經度: ${lng.toFixed(5)}`;
-                    accuracyInfo.textContent = `精確度: 約 ${Math.round(accuracy)} 公尺`;
-                    
-                    hideStatus();
-                },
-                (error) => {
-                    // 若失敗或使用者尚未允許，先安靜隱藏提示，由使用者後續自己點擊「開始追蹤」
-                    hideStatus();
-                },
-                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-            );
-        }
-
-        // 網頁載入完成後
+        // 網頁載入完成後自動執行
         window.onload = () => {
-            getInitialLocation(); // 網頁載入時自動執行一次定位與對焦
+            startAutoTracking(); 
         };
     </script>
 </body>
