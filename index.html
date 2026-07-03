@@ -57,6 +57,12 @@
     <!-- 地圖容器 -->
     <main class="flex-grow relative">
         <div id="map"></div>
+        <!-- 新增：浮動的「回到目前位置 / 自動對焦」按鈕 -->
+        <button id="focus-btn" class="hidden absolute bottom-6 right-4 z-[1000] bg-white p-3 rounded-full shadow-lg border border-gray-200 text-blue-600 hover:bg-blue-100 transition-colors" title="回到目前位置並放大">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+        </button>
     </main>
 
     <!-- 底部資訊列 -->
@@ -90,6 +96,8 @@
         let pathCoordinates = []; // 儲存移動軌跡座標
         let pathLine; // 軌跡線條圖層
         let isFirstLocation = true; // 判斷是否為第一次定位
+        let currentLat = null; // 儲存最新緯度
+        let currentLng = null; // 儲存最新經度
 
         // UI 元素
         const trackBtn = document.getElementById('track-btn');
@@ -98,6 +106,7 @@
         const statusBar = document.getElementById('status-bar');
         const coordsInfo = document.getElementById('coords-info');
         const accuracyInfo = document.getElementById('accuracy-info');
+        const focusBtn = document.getElementById('focus-btn'); // 新增：對焦按鈕
 
         // 3. 追蹤功能實作
         function toggleTracking() {
@@ -147,6 +156,13 @@
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
             const accuracy = position.coords.accuracy;
+
+            // 儲存最新座標，提供給對焦按鈕使用
+            currentLat = lat;
+            currentLng = lng;
+
+            // 顯示對焦按鈕
+            focusBtn.classList.remove('hidden');
 
             // 更新地圖視角
             if (isFirstLocation) {
@@ -243,6 +259,14 @@
 
         // 綁定按鈕點擊事件
         trackBtn.addEventListener('click', toggleTracking);
+
+        // 新增：綁定自動對焦按鈕事件
+        focusBtn.addEventListener('click', () => {
+            if (currentLat !== null && currentLng !== null) {
+                // 重新飛越並放大到比例尺 17
+                map.flyTo([currentLat, currentLng], 17, { animate: true, duration: 1.5 });
+            }
+        });
 
         // 網頁載入完成後
         window.onload = () => {
