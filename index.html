@@ -4,21 +4,35 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>GPS 即時追蹤與導航地圖</title>
+    
+    <!-- 引入 Tailwind CSS (用於快速排版) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- 引入 Leaflet CSS (地圖樣式) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
     <style>
         /* 確保地圖容器填滿剩餘空間 */
         #map {
             height: 100%;
             width: 100%;
-            z-index: 1; /* 避免蓋住 Tailwind 的 z-10 元素 */
+            z-index: 1;
+        }
+        /* 自訂捲軸樣式，讓面板更美觀 */
+        #route-steps::-webkit-scrollbar {
+            width: 6px;
+        }
+        #route-steps::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 10px;
         }
     </style>
 </head>
-<body class="h-screen flex flex-col bg-gray-50">
+<body class="h-screen flex flex-col bg-gray-50 overflow-hidden font-sans">
 
-    <header class="bg-blue-600 text-white p-4 shadow-md z-10 relative">
-        <h1 class="text-xl font-bold flex items-center gap-2">
+    <!-- 頂部標題列 -->
+    <header class="bg-blue-600 text-white p-3 md:p-4 shadow-md z-10 relative flex justify-between items-center">
+        <h1 class="text-lg md:text-xl font-bold flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -27,13 +41,15 @@
         </h1>
     </header>
 
-    <div id="status-bar" class="bg-yellow-100 border-b border-yellow-200 text-yellow-800 px-4 py-2 text-sm text-center hidden z-10 relative">
+    <!-- 狀態提示區塊 -->
+    <div id="status-bar" class="bg-yellow-100 border-b border-yellow-200 text-yellow-800 px-4 py-2 text-sm text-center hidden z-10 relative transition-all">
         正在取得您的位置資訊...
     </div>
 
+    <!-- 搜尋列區塊 -->
     <div class="bg-white p-2 shadow-sm border-b flex gap-2 z-10 relative">
-        <input type="text" id="search-input" placeholder="搜尋地點 (例如: 高雄火車站)" class="flex-grow border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-        <button id="search-btn" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-sm">
+        <input type="text" id="search-input" placeholder="搜尋目的地 (例如: 台北車站)" class="flex-grow border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow">
+        <button id="search-btn" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-sm font-medium">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -41,37 +57,69 @@
         </button>
     </div>
 
-    <main class="flex-grow relative">
-        <div id="map"></div>
-        <button id="focus-btn" class="hidden absolute bottom-6 right-4 z-[1000] bg-white p-3 rounded-full shadow-lg border border-gray-200 text-blue-600 hover:bg-blue-100 transition-colors" title="回到目前位置並放大">
+    <!-- 地圖與疊加面板容器 -->
+    <main class="flex-grow relative flex flex-col md:flex-row">
+        
+        <!-- 地圖本體 -->
+        <div id="map" class="flex-grow"></div>
+        
+        <!-- 浮動的「回到目前位置」按鈕 -->
+        <button id="focus-btn" class="hidden absolute bottom-6 right-4 z-[1000] bg-white p-3 rounded-full shadow-lg border border-gray-200 text-blue-600 hover:bg-blue-100 transition-colors focus:outline-none" title="回到目前位置並放大">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
         </button>
+
+        <!-- 導航步驟面板 (預設隱藏) -->
+        <div id="route-panel" class="hidden absolute top-0 left-0 w-full md:w-80 h-3/5 md:h-auto md:max-h-[90%] bg-white md:m-4 shadow-2xl z-[2000] flex flex-col md:rounded-lg overflow-hidden border border-gray-200 transition-all duration-300 transform">
+            <div class="bg-blue-600 text-white px-4 py-3 flex justify-between items-center shadow-sm">
+                <h2 class="font-bold flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724a1 1 0 01-.553-.894V4.224a1 1 0 01.553-.894L9 4l5.447 2.724a1 1 0 01.553.894v13.153a1 1 0 01-.553.894L9 20z" />
+                    </svg>
+                    路線指引
+                </h2>
+                <button id="close-route-btn" class="text-white hover:text-gray-200 transition-colors focus:outline-none p-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <!-- 步驟清單容器 -->
+            <div id="route-steps" class="flex-grow overflow-y-auto p-0 bg-gray-50">
+                <!-- 步驟將由 JS 自動生成 -->
+            </div>
+        </div>
+
     </main>
 
+    <!-- 底部資訊列 -->
     <footer class="bg-white p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] text-xs text-gray-500 flex items-center justify-between z-10 relative">
         <div class="flex flex-col gap-1">
             <span id="coords-info">緯度: - / 經度: -</span>
             <span id="accuracy-info">精確度: -</span>
         </div>
-        <div class="text-right ml-2">
+        <div class="text-right ml-2 flex-shrink-0">
             <span id="speed-info" class="text-sm md:text-base font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded border border-blue-200 shadow-sm">0.0 km/h</span>
         </div>
     </footer>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- 引入 Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
     <script>
-        // 修正 Leaflet 預設圖標在 CDN 環境下可能遺失路徑的問題
+        // 修正 Leaflet 預設圖標在 CDN 環境下遺失路徑的問題
         delete L.Icon.Default.prototype._getIconUrl;
         L.Icon.Default.mergeOptions({
-            iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-            iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
         });
 
-        // 1. 初始化地圖 (預設中心點設為台灣中心，縮放層級較小)
-        const map = L.map('map').setView([23.5, 121], 7);
+        // 1. 初始化地圖
+        const map = L.map('map', { zoomControl: false }).setView([23.5, 121], 7);
+        // 將縮放控制鈕移到右上角，避免被導航面板擋住
+        L.control.zoom({ position: 'topright' }).addTo(map);
 
         // 2. 加入 OpenStreetMap 圖層
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -98,6 +146,30 @@
         const focusBtn = document.getElementById('focus-btn');
         const searchInput = document.getElementById('search-input');
         const searchBtn = document.getElementById('search-btn');
+        const routePanel = document.getElementById('route-panel');
+        const routeSteps = document.getElementById('route-steps');
+        const closeRouteBtn = document.getElementById('close-route-btn');
+
+        // 翻譯轉向動作為中文
+        function translateManeuver(type, modifier) {
+            if (type === 'depart') return '出發';
+            if (type === 'arrive') return '抵達目的地';
+            
+            const modMap = {
+                'left': '左轉',
+                'right': '右轉',
+                'slight left': '微左轉',
+                'slight right': '微右轉',
+                'sharp left': '左後方轉彎',
+                'sharp right': '右後方轉彎',
+                'straight': '直行',
+                'uturn': '迴轉'
+            };
+            
+            let action = modMap[modifier] || '前進';
+            if (type === 'roundabout') return '進入圓環';
+            return action;
+        }
 
         // 自動追蹤功能實作
         function startAutoTracking() {
@@ -116,7 +188,7 @@
             );
         }
 
-        // 定位成功時的回呼函式
+        // 定位成功
         function onLocationSuccess(position) {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
@@ -126,7 +198,6 @@
             currentLng = lng;
             focusBtn.classList.remove('hidden');
 
-            // 第一次定位時自動飛越對焦
             if (isFirstLocation) {
                 map.flyTo([lat, lng], 17, { animate: true, duration: 1.5 });
                 isFirstLocation = false;
@@ -141,7 +212,7 @@
                 pathLine = L.polyline(pathCoordinates, { color: '#ef4444', weight: 4, opacity: 0.8 }).addTo(map);
             }
 
-            // 更新目前位置標記與誤差範圍圓圈
+            // 更新圓圈與標記
             if (accuracyCircle) {
                 accuracyCircle.setLatLng([lat, lng]);
                 accuracyCircle.setRadius(accuracy);
@@ -157,11 +228,11 @@
                 marker = L.marker([lat, lng]).addTo(map).bindPopup("<b>您目前的位置</b>");
             }
 
-            // 更新底部文字資訊
+            // 底部資訊更新
             coordsInfo.textContent = `緯度: ${lat.toFixed(5)} / 經度: ${lng.toFixed(5)}`;
             accuracyInfo.textContent = `精確度: 約 ${Math.round(accuracy)} 公尺`;
 
-            // 計算車速
+            // 車速計算
             const speed = position.coords.speed;
             if (speed !== null && !isNaN(speed)) {
                 const speedKmh = (speed * 3.6).toFixed(1);
@@ -171,7 +242,7 @@
             }
         }
 
-        // 定位失敗時的回呼函式
+        // 定位失敗
         function onLocationError(error) {
             let message = '取得位置失敗。';
             switch(error.code) {
@@ -217,7 +288,7 @@
                     
                     searchMarker.bindPopup(`<b>搜尋結果：</b><br>${result.display_name}`).openPopup();
 
-                    // 若已有目前位置，進行路線規劃；否則直接飛過去
+                    // 若已有目前位置，呼叫 OSRM 進行路線規劃；否則直接飛過去
                     if (currentLat !== null && currentLng !== null) {
                         getRoute(currentLat, currentLng, destLat, destLon, result.display_name);
                     } else {
@@ -236,18 +307,18 @@
             }
         }
 
-        // 呼叫 OSRM API 取得導航路線
+        // 呼叫 OSRM API 取得導航路線 (加入 steps=true 參數)
         async function getRoute(startLat, startLng, endLat, endLng, destinationName) {
             showStatus('正在規劃導航路線...', 'loading');
             try {
-                const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`;
+                const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson&steps=true`;
                 const response = await fetch(url);
                 const data = await response.json();
 
                 if (data.code === 'Ok' && data.routes.length > 0) {
                     const route = data.routes[0];
                     const coordinates = route.geometry.coordinates;
-                    const latLngs = coordinates.map(coord => [coord[1], coord[0]]);
+                    const latLngs = coordinates.map(coord => [coord[1], coord[0]]); // 轉換為 [緯, 經]
 
                     if (routingLayer) map.removeLayer(routingLayer);
 
@@ -259,6 +330,29 @@
                     // 自動縮放讓起終點都進入畫面
                     map.fitBounds(routingLayer.getBounds(), { padding: [50, 50] });
 
+                    // --- 處理並渲染導航步驟 ---
+                    const steps = route.legs[0].steps;
+                    let stepsHtml = '';
+                    
+                    steps.forEach((step, index) => {
+                        const action = translateManeuver(step.maneuver.type, step.maneuver.modifier);
+                        const street = step.name ? `在 <b>${step.name}</b> ${action}` : action;
+                        const distance = step.distance > 0 ? `<div class="text-xs text-gray-500 mt-1">繼續前進 ${Math.round(step.distance)} 公尺</div>` : '';
+                        
+                        stepsHtml += `
+                            <div class="border-b border-gray-200 p-4 hover:bg-gray-100 flex items-start gap-3 bg-white transition-colors cursor-pointer" onclick="map.flyTo([${step.maneuver.location[1]}, ${step.maneuver.location[0]}], 17)">
+                                <div class="bg-blue-100 text-blue-700 font-bold rounded-full w-7 h-7 flex items-center justify-center flex-shrink-0 text-sm shadow-inner">${index + 1}</div>
+                                <div>
+                                    <div class="text-sm text-gray-800">${street}</div>
+                                    ${distance}
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    routeSteps.innerHTML = stepsHtml;
+                    routePanel.classList.remove('hidden'); // 顯示導航面板
+
                     const distanceKm = (route.distance / 1000).toFixed(1);
                     const durationMin = Math.round(route.duration / 60);
 
@@ -267,7 +361,7 @@
                         ${destinationName}<br>
                         <hr style="margin:5px 0;">
                         🚗 距離: <b>${distanceKm} 公里</b><br>
-                        ⏱️ 開車約: <b>${durationMin} 分鐘</b>
+                        ⏱️ 預估時間: <b>${durationMin} 分鐘</b>
                     `).openPopup();
 
                     hideStatus();
@@ -280,10 +374,10 @@
             }
         }
 
-        // 輔助函式：顯示狀態訊息
+        // 狀態訊息工具
         function showStatus(text, type = 'info') {
             statusBar.textContent = text;
-            statusBar.className = 'px-4 py-2 text-sm text-center z-10 relative ';
+            statusBar.className = 'px-4 py-2 text-sm text-center z-10 relative transition-all ';
             if (type === 'error') {
                 statusBar.classList.add('bg-red-100', 'border-b', 'border-red-200', 'text-red-800');
             } else if (type === 'loading') {
@@ -298,7 +392,7 @@
             statusBar.classList.add('hidden');
         }
 
-        // 綁定事件
+        // 事件綁定
         focusBtn.addEventListener('click', () => {
             if (currentLat !== null && currentLng !== null) {
                 map.flyTo([currentLat, currentLng], 17, { animate: true, duration: 1.5 });
@@ -311,7 +405,11 @@
             if (e.key === 'Enter') searchLocation();
         });
 
-        // 網頁載入完成後直接啟動追蹤
+        closeRouteBtn.addEventListener('click', () => {
+            routePanel.classList.add('hidden');
+        });
+
+        // 網頁載入時啟動
         window.onload = () => {
             startAutoTracking();
         };
