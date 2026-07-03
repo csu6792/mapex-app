@@ -70,9 +70,14 @@
     </main>
 
     <!-- 底部資訊列 -->
-    <footer class="bg-white p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] text-xs text-gray-500 flex justify-between z-10">
-        <span id="coords-info">緯度: - / 經度: -</span>
-        <span id="accuracy-info">精確度: -</span>
+    <footer class="bg-white p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] text-xs text-gray-500 flex items-center justify-between z-10">
+        <div class="flex flex-col gap-1">
+            <span id="coords-info">緯度: - / 經度: -</span>
+            <span id="accuracy-info">精確度: -</span>
+        </div>
+        <div class="text-right ml-2">
+            <span id="speed-info" class="text-sm md:text-base font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded border border-blue-200 shadow-sm">0.0 km/h</span>
+        </div>
     </footer>
 
     <script>
@@ -108,6 +113,7 @@
         const statusBar = document.getElementById('status-bar');
         const coordsInfo = document.getElementById('coords-info');
         const accuracyInfo = document.getElementById('accuracy-info');
+        const speedInfo = document.getElementById('speed-info'); // 新增：速度資訊元素
         const focusBtn = document.getElementById('focus-btn'); // 新增：對焦按鈕
         const searchInput = document.getElementById('search-input'); // 新增：搜尋輸入框
         const searchBtn = document.getElementById('search-btn'); // 新增：搜尋按鈕
@@ -197,6 +203,16 @@
             // 更新 UI 資訊
             coordsInfo.textContent = `緯度: ${lat.toFixed(5)} / 經度: ${lng.toFixed(5)}`;
             accuracyInfo.textContent = `精確度: 約 ${Math.round(accuracy)} 公尺`;
+
+            // 處理速度 (API 回傳單位為 m/s，需乘以 3.6 轉換為 km/h)
+            const speed = position.coords.speed;
+            if (speed !== null && !isNaN(speed)) {
+                const speedKmh = (speed * 3.6).toFixed(1);
+                speedInfo.textContent = `${speedKmh} km/h`;
+            } else {
+                // 如果裝置不支援或處於靜止狀態無法計算速度時
+                speedInfo.textContent = `0.0 km/h`;
+            }
         }
 
         // 定位失敗時的回呼函式
