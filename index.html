@@ -152,10 +152,9 @@
                 map.flyTo([lat, lng], 17, { animate: true, duration: 1.5 });
                 isFirstLocation = false;
                 hideStatus();
-            } else {
-                // 後續移動平滑移動中心點
-                map.panTo([lat, lng]);
             }
+            // 已經移除此處的 map.panTo()
+            // 這樣不僅解決了動畫被打斷的問題，也能讓您在追蹤期間自由拖曳地圖或搜尋其他地點！
 
             // 處理軌跡線
             pathCoordinates.push([lat, lng]);
