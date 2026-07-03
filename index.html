@@ -268,8 +268,53 @@
             }
         });
 
+        // 新增：取得初始位置並自動對焦的函式
+        function getInitialLocation() {
+            if (!navigator.geolocation) return;
+            
+            showStatus('正在為您自動定位...', 'loading');
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const accuracy = position.coords.accuracy;
+
+                    // 記錄座標以供對焦按鈕使用
+                    currentLat = lat;
+                    currentLng = lng;
+                    focusBtn.classList.remove('hidden');
+
+                    // 初始自動飛越並對焦
+                    map.flyTo([lat, lng], 17, { animate: true, duration: 1.5 });
+
+                    // 建立初始圓圈與標記
+                    if (!accuracyCircle) {
+                        accuracyCircle = L.circle([lat, lng], {
+                            radius: accuracy, color: '#3b82f6', fillColor: '#93c5fd', fillOpacity: 0.3, weight: 1
+                        }).addTo(map);
+                    }
+                    if (!marker) {
+                        marker = L.marker([lat, lng]).addTo(map).bindPopup("<b>您目前的位置</b>").openPopup();
+                    }
+
+                    // 更新底部座標資訊
+                    coordsInfo.textContent = `緯度: ${lat.toFixed(5)} / 經度: ${lng.toFixed(5)}`;
+                    accuracyInfo.textContent = `精確度: 約 ${Math.round(accuracy)} 公尺`;
+                    
+                    hideStatus();
+                },
+                (error) => {
+                    // 若失敗或使用者尚未允許，先安靜隱藏提示，由使用者後續自己點擊「開始追蹤」
+                    hideStatus();
+                },
+                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+            );
+        }
+
         // 網頁載入完成後
         window.onload = () => {
+            getInitialLocation(); // 網頁載入時自動執行一次定位與對焦
         };
     </script>
 </body>
